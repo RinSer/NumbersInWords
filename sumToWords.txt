@@ -1,0 +1,210 @@
+﻿export interface ISumToWords {
+    // Возвращает числа прописью (только для мужского рода)
+    numberToWords(sum: number): string;
+
+    // Возвращает пару [основная валюта, сотые валюты] в правильном склонении или строку с сообщением об ошибке
+    currencyDeclension(sum: number, currencyTitle: string): string | [string, string];
+
+    // Возвращает сумму прописью с валютой (рубль, доллар, евро)
+    getString(sum: number, currencyTitle: string): string;
+}
+
+export const Name: string = "sumToWordsService";
+
+export class SumToWords implements ISumToWords {
+
+    numberToWords(sum: number): string {
+
+        const numericals = {
+
+            ones: ["", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять",
+                "десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать",
+                "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"],
+            tens: ["двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"],
+            hundreds: ["сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"],
+            thousands: ["тысячи", "тысяч"],
+            million: "миллион",
+            billion: "миллиард",
+            trillion: "триллион",
+            endings: ["", "а", "ов"]
+
+        };
+
+        if (typeof sum === 'number') {
+            let signString: string = "";
+
+            let normalValue: number = Math.round(sum);
+            if (normalValue < 0) {
+                signString += "минус "
+                normalValue = -normalValue;
+            }
+
+            switch (true) {
+                case normalValue < 20: {
+                    return signString + numericals.ones[normalValue];
+                }
+                case normalValue < 1e2: {
+                    let decims: number = Math.floor(normalValue / 10);
+                    let remainder: number = normalValue % 10;
+                    return signString + numericals.tens[decims - 2] + ' ' + this.numberToWords(remainder);
+                }
+                case normalValue < 1e3: {
+                    let ciens: number = Math.floor(normalValue / 1e2);
+                    let remainder: number = normalValue % 1e2;
+                    return signString + numericals.hundreds[ciens - 1] + ' ' + this.numberToWords(remainder);
+                }
+                case normalValue < 1e6: {
+                    let textIndex: number;
+                    let mils: number = Math.floor(normalValue / 1e3);
+                    let remainder: number = normalValue % 1e3;
+
+                    let preRemainder: number = mils % 100;
+                    let flexRemainder: number = mils % 10;
+                    if (mils === 1)
+                        return signString + "одна тысяча " + this.numberToWords(remainder);
+                    else if (mils === 2)
+                        return signString + "две тысячи " + this.numberToWords(remainder);
+                    else if (preRemainder !== 11 && flexRemainder === 1)
+                        return signString + this.numberToWords(mils - flexRemainder) + " одна тысяча " + this.numberToWords(remainder);
+                    else if (preRemainder !== 12 && flexRemainder === 2)
+                        return signString + this.numberToWords(mils - flexRemainder) + " две тысячи " + this.numberToWords(remainder);
+
+                    if (preRemainder !== 12 && preRemainder !== 13 && preRemainder !== 14 && flexRemainder > 2 && flexRemainder < 5)
+                        textIndex = 0;
+                    else
+                        textIndex = 1;
+                    return signString + this.numberToWords(mils) + ' ' + numericals.thousands[textIndex] + ' ' + this.numberToWords(remainder);
+                }
+                default: {
+                    let text: string;
+                    let flexIndex: number;
+                    let divisor: number;
+                    if (normalValue < 1e9) {
+                        divisor = 1e6;
+                        text = numericals.million;
+                    } else if (normalValue < 1e12) {
+                        divisor = 1e9;
+                        text = numericals.billion;
+                    } else {
+                        divisor = 1e12;
+                        text = numericals.trillion;
+                    }
+
+                    let integer: number = Math.floor(normalValue / divisor);
+                    let remainder: number = normalValue % divisor;
+
+                    let preRemainder: number = integer % 100;
+                    let flexRemainder: number = integer % 10;
+                    if (preRemainder !== 11 && flexRemainder === 1)
+                        flexIndex = 0;
+                    else if (preRemainder !== 12 && preRemainder !== 13 && preRemainder !== 14 && flexRemainder > 1 && flexRemainder < 5)
+                        flexIndex = 1;
+                    else
+                        flexIndex = 2;
+
+                    return signString + this.numberToWords(integer) + ' ' + text + numericals.endings[flexIndex] + ' ' + this.numberToWords(remainder);
+                }
+            }
+
+        } else return "Дайте мне число!";
+
+    }
+
+    currencyDeclension(sum: number, currencyTitle: string): [string, string] | string {
+
+        const currencyList: Array<Array<string>> = [
+            ["рубль", "доллар", "евро"],
+            ["рубля", "доллара", "евро"],
+            ["рублей", "долларов", "евро"]
+        ];
+
+        const subCurrencyList: Array<Array<string>> = [
+            ["копейка", "цент", "евроцент"],
+            ["копейки", "цента", "евроцента"],
+            ["копеек", "центов", "евроцентов"]
+        ];
+
+        if (typeof sum === 'number') {
+            let currencyIndex: number = currencyList[0].indexOf(currencyTitle);
+            if (currencyIndex > -1) {
+                // Normalize the sum
+                if (sum < 0) sum = -sum;
+                // Find sum parts
+                let sumParts: Array<string> = sum.toFixed(2).split('.');
+                let mainSum: number = parseFloat(sumParts[0]);
+                let centSum: number = parseFloat(sumParts[1]);
+                // Helper variables
+                let flexIndex: number;
+                let preRemainder: number;
+                let flexRemainder: number;
+                // Find the main currency word
+                let mainCurrency: string;
+                if (mainSum === 0)
+                    mainCurrency = "";
+                else {
+                    preRemainder = mainSum % 100;
+                    flexRemainder = mainSum % 10;
+                    if (preRemainder !== 11 && flexRemainder === 1)
+                        flexIndex = 0;
+                    else if (preRemainder !== 12 && preRemainder !== 13 && preRemainder !== 14 && flexRemainder > 1 && flexRemainder < 5)
+                        flexIndex = 1;
+                    else
+                        flexIndex = 2;
+                    mainCurrency = currencyList[flexIndex][currencyIndex];
+                }
+                // Find the cent currency word
+                let centCurrency: string;
+                if (centSum === 0)
+                    centCurrency = "";
+                else {
+                    preRemainder = centSum % 100;
+                    flexRemainder = centSum % 10;
+                    if (preRemainder !== 11 && flexRemainder === 1)
+                        flexIndex = 0;
+                    else if (preRemainder !== 12 && preRemainder !== 13 && preRemainder !== 14 && flexRemainder > 1 && flexRemainder < 5)
+                        flexIndex = 1;
+                    else
+                        flexIndex = 2;
+                    centCurrency = subCurrencyList[flexIndex][currencyIndex];
+                }
+                return [mainCurrency, centCurrency]
+            } else return "Некорректное название валюты, я знаю: рубль, доллар и евро";
+        } else return "Некорректная сумма, введите число";
+
+    }
+
+    getString(sum: number, currency: string): string {
+
+        if (typeof sum === 'number') {
+
+            let value: Array<string> = sum.toFixed(2).split('.');
+            let integerPart: string = this.numberToWords(parseFloat(value[0]));
+            let decimalPart: string = this.numberToWords(parseFloat(value[1]));
+            let currencies: [string, string] | string = this.currencyDeclension(sum, currency);
+
+            if (typeof currencies === 'string')
+                return currencies;
+            else {
+                let result: string = "";
+                if (integerPart)
+                    result += integerPart + " " + currencies[0];
+                if (decimalPart) {
+                    if (result !== "")
+                        result += " ";
+                    if (currency === 'рубль') {
+                        let cents: number = parseFloat(value[1]);
+                        if (cents !== 11 && (cents % 10) === 1)
+                            decimalPart = this.numberToWords(cents - 1) + " одна";
+                        if (cents !== 12 && (cents % 10) === 2)
+                            decimalPart = this.numberToWords(cents - 2) + " две";
+                    }
+                    result += decimalPart + " " + currencies[1];
+                }
+                return result;
+            }
+
+        } else return "Сумма должна быть числом";
+
+    }
+
+}
